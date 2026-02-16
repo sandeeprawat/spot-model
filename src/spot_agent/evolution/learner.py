@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from openai import AsyncOpenAI
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 
 from spot_agent.config import LLMConfig
 from spot_agent.evolution.engine import SelfEvolutionEngine
@@ -66,10 +66,17 @@ class LearningEngine:
         self.evolution = evolution_engine
         self.tracker = tracker
 
-        client_kwargs: dict[str, Any] = {"api_key": llm_config.api_key}
-        if llm_config.api_base:
-            client_kwargs["base_url"] = llm_config.api_base
-        self._llm = AsyncOpenAI(**client_kwargs)
+        if getattr(llm_config, "provider", "openai") == "azure_openai":
+            self._llm: AsyncOpenAI | AsyncAzureOpenAI = AsyncAzureOpenAI(
+                api_key=llm_config.api_key,
+                azure_endpoint=llm_config.api_base or "",
+                api_version="2024-02-01",
+            )
+        else:
+            client_kwargs: dict[str, Any] = {"api_key": llm_config.api_key}
+            if llm_config.api_base:
+                client_kwargs["base_url"] = llm_config.api_base
+            self._llm = AsyncOpenAI(**client_kwargs)
 
     async def analyze_and_evolve(self) -> list[dict[str, Any]]:
         """Analyze capability gaps and attempt to create new tools."""

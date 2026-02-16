@@ -6,7 +6,7 @@ import asyncio
 import json
 from typing import Any
 
-from openai import AsyncOpenAI
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 
 from spot_agent.config import AgentConfig
 from spot_agent.core.memory import AgentMemory
@@ -51,13 +51,21 @@ class AutonomousAgent:
         self._running = False
 
         # Initialize LLM client (lazy — may be None if not configured)
-        self._llm: AsyncOpenAI | None = None
+        self._llm: AsyncOpenAI | AsyncAzureOpenAI | None = None
         llm_cfg = getattr(config, "llm", None)
         if llm_cfg and getattr(llm_cfg, "api_key", None):
-            client_kwargs: dict[str, Any] = {"api_key": llm_cfg.api_key}
-            if llm_cfg.api_base:
-                client_kwargs["base_url"] = llm_cfg.api_base
-            self._llm = AsyncOpenAI(**client_kwargs)
+            provider = getattr(llm_cfg, "provider", "openai")
+            if provider == "azure_openai":
+                self._llm = AsyncAzureOpenAI(
+                    api_key=llm_cfg.api_key,
+                    azure_endpoint=llm_cfg.api_base,
+                    api_version="2024-02-01",
+                )
+            else:
+                client_kwargs: dict[str, Any] = {"api_key": llm_cfg.api_key}
+                if llm_cfg.api_base:
+                    client_kwargs["base_url"] = llm_cfg.api_base
+                self._llm = AsyncOpenAI(**client_kwargs)
 
     async def _get_tool_definitions(self) -> list[dict[str, Any]]:
         """Get OpenAI-compatible tool definitions from the registry."""
