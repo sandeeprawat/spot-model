@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from spot_agent.api.models import (
     CheckpointResponse,
@@ -138,6 +140,13 @@ def _task_to_response(task: Any) -> TaskResponse:
         completed_at=task.completed_at,
         retries=task.retries,
     )
+
+
+@app.get("/")
+async def root():
+    """Serve the dashboard."""
+    static_dir = Path(__file__).parent / "static"
+    return FileResponse(static_dir / "index.html")
 
 
 @app.get("/health", response_model=HealthResponse)

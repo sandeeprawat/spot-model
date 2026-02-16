@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPOT Agent — Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --border: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #79c0ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+            --purple: #bc8cff;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header h1 .icon { font-size: 24px; }
+        .health-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .health-badge.healthy { background: rgba(63,185,80,0.15); color: var(--success); border: 1px solid rgba(63,185,80,0.3); }
+        .health-badge.unhealthy { background: rgba(248,81,73,0.15); color: var(--danger); border: 1px solid rgba(248,81,73,0.3); }
+
+        /* Stats bar */
+        .stats-bar {
+            display: flex;
+            gap: 16px;
+            padding: 16px 24px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+        }
+        .stat-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 20px;
+            min-width: 140px;
+            text-align: center;
+        }
+        .stat-card .value { font-size: 24px; font-weight: 700; color: var(--accent); }
+        .stat-card .label { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+        /* Main layout */
+        .main { display: flex; height: calc(100vh - 120px); }
+        .sidebar {
+            width: 380px;
+            min-width: 380px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+        .content { flex: 1; overflow-y: auto; padding: 24px; }
+
+        /* Task form */
+        .task-form {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .task-form h2 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .task-form textarea {
+            width: 100%;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            padding: 12px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 80px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .task-form textarea:focus { border-color: var(--accent); }
+        .task-form .form-row { display: flex; gap: 8px; margin-top: 10px; }
+        .task-form select {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            padding: 8px 12px;
+            font-size: 13px;
+            outline: none;
+        }
+        .btn {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            flex: 1;
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Task list */
+        .task-list { flex: 1; overflow-y: auto; }
+        .task-list-header {
+            padding: 12px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .refresh-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .task-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .task-item:hover { background: var(--bg-tertiary); }
+        .task-item.selected { background: var(--bg-tertiary); border-left: 3px solid var(--accent); }
+        .task-item .task-desc {
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 6px;
+        }
+        .task-item .task-meta { display: flex; gap: 8px; align-items: center; }
+        .status-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        .status-pending { background: rgba(210,153,34,0.15); color: var(--warning); }
+        .status-in_progress { background: rgba(88,166,255,0.15); color: var(--accent); }
+        .status-completed { background: rgba(63,185,80,0.15); color: var(--success); }
+        .status-failed { background: rgba(248,81,73,0.15); color: var(--danger); }
+        .priority-badge { font-size: 11px; color: var(--text-secondary); }
+        .time-badge { font-size: 11px; color: var(--text-secondary); margin-left: auto; }
+
+        /* Task detail */
+        .task-detail { max-width: 800px; }
+        .task-detail .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--text-secondary);
+        }
+        .task-detail .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+        .detail-header { margin-bottom: 24px; }
+        .detail-header h2 { font-size: 18px; margin-bottom: 8px; }
+        .detail-meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .detail-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .detail-section h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+        .detail-section .result-content {
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.7;
+        }
+        .detail-section pre {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            overflow-x: auto;
+            font-size: 13px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+        .detail-section code {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: var(--bg-primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .error-box {
+            background: rgba(248,81,73,0.1);
+            border: 1px solid rgba(248,81,73,0.3);
+            border-radius: 8px;
+            padding: 12px;
+            color: var(--danger);
+        }
+
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            z-index: 1000;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .toast.success { border-color: var(--success); }
+        .toast.error { border-color: var(--danger); }
+        .toast.hidden { opacity: 0; transform: translateY(20px); pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><span class="icon">🤖</span> SPOT Agent</h1>
+        <span id="healthBadge" class="health-badge unhealthy">checking...</span>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stat-card"><div class="value" id="statUptime">--</div><div class="label">Uptime (min)</div></div>
+        <div class="stat-card"><div class="value" id="statCompleted">--</div><div class="label">Completed</div></div>
+        <div class="stat-card"><div class="value" id="statPending">--</div><div class="label">Pending</div></div>
+        <div class="stat-card"><div class="value" id="statTools">--</div><div class="label">Tools</div></div>
+    </div>
+
+    <div class="main">
+        <div class="sidebar">
+            <div class="task-form">
+                <h2>Submit Task</h2>
+                <textarea id="taskInput" placeholder="Describe the task for the agent...&#10;&#10;Example: Write a Python function to sort a list using merge sort"></textarea>
+                <div class="form-row">
+                    <select id="prioritySelect">
+                        <option value="low">Low</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                    <button class="btn btn-primary" id="submitBtn" onclick="submitTask()">Submit Task</button>
+                </div>
+            </div>
+            <div class="task-list-header">
+                <span>Tasks <span id="taskCount">(0)</span></span>
+                <button class="refresh-btn" onclick="loadTasks()">↻ Refresh</button>
+            </div>
+            <div class="task-list" id="taskList">
+                <div style="padding:40px;text-align:center;color:var(--text-secondary)">No tasks yet</div>
+            </div>
+        </div>
+        <div class="content">
+            <div class="task-detail" id="taskDetail">
+                <div class="empty-state">
+                    <div class="icon">📋</div>
+                    <h3>Select a task to view details</h3>
+                    <p style="margin-top:8px;color:var(--text-secondary)">Submit a task or click one from the list</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script>
+        const API = '';  // same origin
+        let selectedTaskId = null;
+        let pollInterval = null;
+
+        // ---- API calls ----
+        async function api(path, opts = {}) {
+            const res = await fetch(API + path, {
+                headers: { 'Content-Type': 'application/json' },
+                ...opts,
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        }
+
+        // ---- Health ----
+        async function loadHealth() {
+            try {
+                const h = await api('/health');
+                const badge = document.getElementById('healthBadge');
+                badge.textContent = h.status;
+                badge.className = 'health-badge ' + (h.status === 'healthy' ? 'healthy' : 'unhealthy');
+                document.getElementById('statUptime').textContent = Math.floor(h.uptime_seconds / 60);
+                document.getElementById('statCompleted').textContent = h.tasks_completed;
+                document.getElementById('statPending').textContent = h.tasks_pending;
+                document.getElementById('statTools').textContent = h.tools_available;
+            } catch (e) {
+                document.getElementById('healthBadge').textContent = 'offline';
+                document.getElementById('healthBadge').className = 'health-badge unhealthy';
+            }
+        }
+
+        // ---- Tasks ----
+        async function loadTasks() {
+            try {
+                const data = await api('/tasks');
+                document.getElementById('taskCount').textContent = '(' + data.total + ')';
+                const list = document.getElementById('taskList');
+                if (!data.tasks || data.tasks.length === 0) {
+                    list.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-secondary)">No tasks yet</div>';
+                    return;
+                }
+                // Sort: newest first
+                data.tasks.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                list.innerHTML = data.tasks.map(t => {
+                    const desc = t.description.length > 60 ? t.description.substring(0, 60) + '...' : t.description;
+                    const time = t.created_at ? new Date(t.created_at).toLocaleTimeString() : '';
+                    const selected = t.id === selectedTaskId ? ' selected' : '';
+                    return `<div class="task-item${selected}" onclick="selectTask('${t.id}')">
+                        <div class="task-desc">${escHtml(desc)}</div>
+                        <div class="task-meta">
+                            <span class="status-badge status-${t.status}">${t.status}</span>
+                            <span class="priority-badge">⚡ ${t.priority}</span>
+                            <span class="time-badge">${time}</span>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                console.error('Failed to load tasks:', e);
+            }
+        }
+
+        async function selectTask(id) {
+            selectedTaskId = id;
+            loadTasks(); // re-render to highlight
+
+            try {
+                const t = await api('/tasks/' + id);
+                const detail = document.getElementById('taskDetail');
+
+                let resultHtml = '';
+                if (t.result) {
+                    // Format code blocks in result
+                    let formatted = escHtml(t.result)
+                        .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+                        .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                        .replace(/`([^`]+)`/g, '<code>$1</code>');
+                    resultHtml = `<div class="detail-section">
+                        <h3>Result</h3>
+                        <div class="result-content">${formatted}</div>
+                    </div>`;
+                }
+
+                let errorHtml = '';
+                if (t.error) {
+                    errorHtml = `<div class="error-box" style="margin-bottom:16px">
+                        <strong>Error:</strong> ${escHtml(t.error)}
+                    </div>`;
+                }
+
+                const duration = t.started_at && t.completed_at
+                    ? ((new Date(t.completed_at) - new Date(t.started_at)) / 1000).toFixed(1) + 's'
+                    : t.started_at ? '<span class="spinner"></span> running...' : 'waiting...';
+
+                detail.innerHTML = `
+                    <div class="detail-header">
+                        <h2>${escHtml(t.description)}</h2>
+                        <div class="detail-meta">
+                            <span class="status-badge status-${t.status}">${t.status}</span>
+                            <span class="priority-badge">⚡ ${t.priority}</span>
+                            <span style="color:var(--text-secondary);font-size:13px">⏱ ${duration}</span>
+                            <span style="color:var(--text-secondary);font-size:13px">ID: ${t.id}</span>
+                            ${t.retries > 0 ? `<span style="color:var(--warning);font-size:13px">↻ ${t.retries} retries</span>` : ''}
+                        </div>
+                    </div>
+                    ${errorHtml}
+                    ${resultHtml}
+                    <div class="detail-section">
+                        <h3>Timeline</h3>
+                        <div style="font-size:13px;color:var(--text-secondary)">
+                            Created: ${t.created_at ? new Date(t.created_at).toLocaleString() : '-'}<br>
+                            Started: ${t.started_at ? new Date(t.started_at).toLocaleString() : '-'}<br>
+                            Completed: ${t.completed_at ? new Date(t.completed_at).toLocaleString() : '-'}
+                        </div>
+                    </div>`;
+
+                // Auto-refresh if task is still running
+                if (t.status === 'pending' || t.status === 'in_progress') {
+                    if (pollInterval) clearInterval(pollInterval);
+                    pollInterval = setInterval(() => selectTask(id), 3000);
+                } else {
+                    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+                }
+            } catch (e) {
+                console.error('Failed to load task:', e);
+            }
+        }
+
+        // ---- Submit ----
+        async function submitTask() {
+            const input = document.getElementById('taskInput');
+            const priority = document.getElementById('prioritySelect').value;
+            const desc = input.value.trim();
+            if (!desc) { showToast('Please enter a task description', 'error'); return; }
+
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = 'Submitting...';
+
+            try {
+                const task = await api('/tasks', {
+                    method: 'POST',
+                    body: JSON.stringify({ description: desc, priority: priority }),
+                });
+                input.value = '';
+                showToast('Task submitted: ' + task.id, 'success');
+                await loadTasks();
+                selectTask(task.id);
+            } catch (e) {
+                showToast('Failed to submit task: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Submit Task';
+            }
+        }
+
+        // Submit on Ctrl+Enter
+        document.getElementById('taskInput').addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') submitTask();
+        });
+
+        // ---- Toast ----
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast ' + type;
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        // ---- Util ----
+        function escHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        // ---- Init ----
+        loadHealth();
+        loadTasks();
+        setInterval(loadHealth, 15000);
+        setInterval(loadTasks, 10000);
+    </script>
+</body>
+</html>
