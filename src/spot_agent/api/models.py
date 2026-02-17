@@ -29,12 +29,14 @@ class TaskRequest(BaseModel):
     description: str = Field(description="Task description / instructions for the agent")
     priority: TaskPriorityEnum = Field(default=TaskPriorityEnum.NORMAL, description="Task priority")
     parent_id: str | None = Field(default=None, description="Parent task ID for follow-up conversations")
+    title: str | None = Field(default=None, description="Optional title for the task thread")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
 
 class TaskResponse(BaseModel):
     """Response for a single task."""
     id: str
+    title: str | None = None
     description: str
     status: TaskStatusEnum
     priority: str

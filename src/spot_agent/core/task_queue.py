@@ -30,6 +30,7 @@ class TaskPriority(int, Enum):
 class Task:
     """A unit of work for the agent."""
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
+    title: str | None = None
     description: str = ""
     status: TaskStatus = TaskStatus.PENDING
     priority: TaskPriority = TaskPriority.NORMAL
@@ -47,6 +48,7 @@ class Task:
         """Serialize task to dictionary."""
         return {
             "id": self.id,
+            "title": self.title,
             "description": self.description,
             "status": self.status.value,
             "priority": self.priority.value,
@@ -66,6 +68,7 @@ class Task:
         """Deserialize task from dictionary."""
         return cls(
             id=data["id"],
+            title=data.get("title"),
             description=data["description"],
             status=TaskStatus(data["status"]),
             priority=TaskPriority(data["priority"]),
@@ -87,9 +90,9 @@ class TaskQueue:
     def __init__(self) -> None:
         self._tasks: dict[str, Task] = {}
 
-    def submit(self, description: str, priority: TaskPriority = TaskPriority.NORMAL, parent_id: str | None = None, **metadata: Any) -> Task:
+    def submit(self, description: str, priority: TaskPriority = TaskPriority.NORMAL, parent_id: str | None = None, title: str | None = None, **metadata: Any) -> Task:
         """Submit a new task to the queue."""
-        task = Task(description=description, priority=priority, parent_id=parent_id, metadata=metadata)
+        task = Task(description=description, priority=priority, parent_id=parent_id, title=title, metadata=metadata)
         self._tasks[task.id] = task
         return task
 

@@ -130,6 +130,7 @@ def _task_to_response(task: Any) -> TaskResponse:
     """Convert internal Task to API response."""
     return TaskResponse(
         id=task.id,
+        title=task.title,
         description=task.description,
         status=TaskStatusEnum(task.status.value),
         priority=task.priority.name.lower(),
@@ -178,6 +179,7 @@ async def submit_task(request: TaskRequest):
         description=request.description,
         priority=priority,
         parent_id=request.parent_id,
+        title=request.title,
         **request.metadata,
     )
     log.info("task_submitted", task_id=task.id, description=task.description[:80])
@@ -222,6 +224,20 @@ async def get_task_chain(task_id: str):
         tasks=[_task_to_response(t) for t in chain],
         total=len(chain),
     )
+
+
+@app.patch("/tasks/{task_id}", response_model=TaskResponse)
+async def update_task(task_id: str, updates: dict):
+    """Update task fields (e.g., title)."""
+    if not _task_queue:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    task = _task_queue.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+    if "title" in updates:
+        task.title = updates["title"]
+    return _task_to_response(task)
 
 
 @app.post("/checkpoint", response_model=CheckpointResponse)
