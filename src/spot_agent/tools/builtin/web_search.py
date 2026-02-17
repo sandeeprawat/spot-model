@@ -1,4 +1,4 @@
-"""Web search tool using Bing Search API or fallback."""
+"""Web search tool using Bing Search API with DuckDuckGo fallback."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ log = get_logger(__name__)
 
 
 class WebSearchTool(BaseTool):
-    """Search the web for information using Bing Search API."""
+    """Search the web for information. Uses Bing Search API if configured, otherwise DuckDuckGo (free, no key needed)."""
 
     @property
     def name(self) -> str:
@@ -43,12 +43,14 @@ class WebSearchTool(BaseTool):
         }
 
     async def execute(self, query: str, count: int = 5, **kwargs: Any) -> list[dict[str, str]]:
-        """Execute a web search."""
+        """Execute a web search. Uses Bing if API key is set, otherwise DuckDuckGo."""
         api_key = os.environ.get("BING_SEARCH_API_KEY")
-        if not api_key:
-            log.warning("bing_api_key_not_set")
-            return [{"error": "BING_SEARCH_API_KEY not configured. Set the environment variable to enable web search."}]
+        if api_key:
+            return await self._search_bing(query, count, api_key)
+        return await self._search_duckduckgo(query, count)
 
+    async def _search_bing(self, query: str, count: int, api_key: str) -> list[dict[str, str]]:
+        """Search using Bing Search API."""
         url = "https://api.bing.microsoft.com/v7.0/search"
         headers = {"Ocp-Apim-Subscription-Key": api_key}
         params = {"q": query, "count": count, "textFormat": "Raw"}
@@ -66,8 +68,31 @@ class WebSearchTool(BaseTool):
                     "url": item.get("url", ""),
                     "snippet": item.get("snippet", ""),
                 })
-            log.info("web_search_completed", query=query, results=len(results))
+            log.info("bing_search_completed", query=query, results=len(results))
             return results
         except Exception as exc:
-            log.error("web_search_error", query=query, error=str(exc))
-            return [{"error": str(exc)}]
+            log.error("bing_search_error", query=query, error=str(exc))
+            # Fall back to DuckDuckGo on Bing failure
+            log.info("falling_back_to_duckduckgo")
+            return await self._search_duckduckgo(query, count)
+
+    async def _search_duckduckgo(self, query: str, count: int) -> list[dict[str, str]]:
+        """Search using DuckDuckGo (free, no API key needed)."""
+        try:
+            from duckduckgo_search import DDGS
+
+            with DDGS() as ddgs:
+                raw_results = list(ddgs.text(query, max_results=count))
+
+            results = []
+            for item in raw_results:
+                results.append({
+                    "title": item.get("title", ""),
+                    "url": item.get("href", ""),
+                    "snippet": item.get("body", ""),
+                })
+            log.info("duckduckgo_search_completed", query=query, results=len(results))
+            return results
+        except Exception as exc:
+            log.error("duckduckgo_search_error", query=query, error=str(exc))
+            return [{"error": f"Web search failed: {exc}"}]
