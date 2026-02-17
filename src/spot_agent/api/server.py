@@ -240,6 +240,27 @@ async def update_task(task_id: str, updates: dict):
     return _task_to_response(task)
 
 
+@app.post("/tasks/{task_id}/retry", response_model=TaskResponse, status_code=200)
+async def retry_task(task_id: str):
+    """Retry a failed task by resetting it to pending."""
+    if not _task_queue:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    task = _task_queue.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+    if task.status != TaskStatus.FAILED:
+        raise HTTPException(status_code=400, detail="Only failed tasks can be retried")
+
+    task.status = TaskStatus.PENDING
+    task.error = None
+    task.retries = 0
+    task.started_at = None
+    task.completed_at = None
+    log.info("task_retried", task_id=task.id)
+    return _task_to_response(task)
+
+
 @app.post("/checkpoint", response_model=CheckpointResponse)
 async def trigger_checkpoint():
     """Trigger a manual checkpoint of agent state."""

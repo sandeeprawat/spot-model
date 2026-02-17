@@ -27,7 +27,10 @@
             background: var(--bg-primary);
             color: var(--text-primary);
             line-height: 1.6;
-            min-height: 100vh;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         /* Header */
@@ -77,7 +80,7 @@
         .stat-card .label { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
 
         /* Main layout */
-        .main { display: flex; height: calc(100vh - 120px); }
+        .main { display: flex; flex: 1; min-height: 0; }
         .sidebar {
             width: 380px;
             min-width: 380px;
@@ -393,6 +396,26 @@
         }
         .followup-bar .btn-send:hover { background: var(--accent-hover); }
         .followup-bar .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Retry button on errors */
+        .error-msg-row { display: flex; align-items: flex-start; gap: 8px; }
+        .error-msg-row .error-box { flex: 1; }
+        .btn-retry {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 8px;
+            padding: 4px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(248,81,73,0.4);
+            background: rgba(248,81,73,0.08);
+            color: var(--danger);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-retry:hover { background: rgba(248,81,73,0.2); border-color: var(--danger); }
+        .btn-retry:disabled { opacity: 0.5; cursor: not-allowed; }
 
         /* Loading spinner */
         .spinner {
@@ -711,6 +734,7 @@
                             threadHtml += `<div class="conv-bubble assistant">
                                 <div class="conv-label">Agent</div>
                                 <div class="error-box">${escHtml(t.error)}</div>
+                                <button class="btn-retry" onclick="retryTask('${t.id}')" id="retry-${t.id}">🔄 Retry</button>
                             </div>`;
                         } else if (t.status === 'pending' || t.status === 'in_progress') {
                             threadHtml += `<div class="conv-bubble assistant">
@@ -838,6 +862,22 @@
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Send ↵';
+            }
+        }
+
+        // ---- Retry failed task ----
+        async function retryTask(taskId) {
+            const btn = document.getElementById('retry-' + taskId);
+            if (btn) { btn.disabled = true; btn.textContent = '🔄 Retrying...'; }
+
+            try {
+                await api('/tasks/' + taskId + '/retry', { method: 'POST' });
+                showToast('Retrying task ' + taskId, 'success');
+                await loadTasks();
+                selectTask(taskId);
+            } catch (e) {
+                showToast('Retry failed: ' + e.message, 'error');
+                if (btn) { btn.disabled = false; btn.textContent = '🔄 Retry'; }
             }
         }
 
