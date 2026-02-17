@@ -94,6 +94,34 @@
             border-bottom: 1px solid var(--border);
         }
         .task-form h2 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .task-form .context-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            background: rgba(88,166,255,0.08);
+            border: 1px solid rgba(88,166,255,0.2);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--accent);
+        }
+        .task-form .context-bar .ctx-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .task-form .context-bar .ctx-close {
+            background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 16px; padding: 0 4px;
+        }
+        .task-form .context-bar .ctx-close:hover { color: var(--danger); }
+        .btn-new-task {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        .btn-new-task:hover { border-color: var(--purple); color: var(--purple); }
         .task-form textarea {
             width: 100%;
             background: var(--bg-primary);
@@ -244,6 +272,60 @@
             color: var(--danger);
         }
 
+        /* Conversation thread */
+        .conv-thread { margin-bottom: 16px; }
+        .conv-thread h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+        .conv-bubble {
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+            max-width: 90%;
+        }
+        .conv-bubble.user {
+            background: rgba(88,166,255,0.1);
+            border: 1px solid rgba(88,166,255,0.2);
+            margin-left: auto;
+        }
+        .conv-bubble.assistant {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+        }
+        .conv-bubble .conv-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        .conv-bubble.user .conv-label { color: var(--accent); }
+        .conv-bubble.assistant .conv-label { color: var(--purple); }
+        .conv-bubble .conv-text { white-space: pre-wrap; word-break: break-word; }
+        .conv-bubble pre {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px;
+            overflow-x: auto;
+            font-size: 13px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            margin-top: 8px;
+        }
+        .conv-bubble code {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: var(--bg-primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
         /* Loading spinner */
         .spinner {
             display: inline-block;
@@ -291,7 +373,15 @@
     <div class="main">
         <div class="sidebar">
             <div class="task-form">
-                <h2>Submit Task</h2>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                    <h2 style="margin-bottom:0" id="formTitle">New Task</h2>
+                    <button class="btn-new-task" id="newTaskBtn" onclick="startNewTask()" style="display:none">+ New Task</button>
+                </div>
+                <div id="contextBar" style="display:none" class="context-bar">
+                    <span>💬</span>
+                    <span class="ctx-text" id="contextText"></span>
+                    <button class="ctx-close" onclick="startNewTask()" title="Start new task">✕</button>
+                </div>
                 <textarea id="taskInput" placeholder="Describe the task for the agent...&#10;&#10;Example: Write a Python function to sort a list using merge sort"></textarea>
                 <div class="form-row">
                     <select id="prioritySelect">
@@ -300,7 +390,7 @@
                         <option value="high">High</option>
                         <option value="critical">Critical</option>
                     </select>
-                    <button class="btn btn-primary" id="submitBtn" onclick="submitTask()">Submit Task</button>
+                    <button class="btn btn-primary" id="submitBtn" onclick="submitTask()">Send</button>
                 </div>
             </div>
             <div class="task-list-header">
@@ -325,8 +415,9 @@
     <div id="toast" class="toast hidden"></div>
 
     <script>
-        const API = '';  // same origin
+        const API = '';
         let selectedTaskId = null;
+        let followUpParentId = null;  // When set, next submit is a follow-up
         let pollInterval = null;
 
         // ---- API calls ----
@@ -356,6 +447,30 @@
             }
         }
 
+        // ---- Conversation context ----
+        function setFollowUp(taskId, description) {
+            followUpParentId = taskId;
+            const desc = description.length > 50 ? description.substring(0, 50) + '...' : description;
+            document.getElementById('contextBar').style.display = 'flex';
+            document.getElementById('contextText').textContent = 'Following up on: ' + desc;
+            document.getElementById('formTitle').textContent = 'Follow Up';
+            document.getElementById('newTaskBtn').style.display = 'block';
+            document.getElementById('submitBtn').textContent = 'Send Follow-up';
+            document.getElementById('taskInput').placeholder = 'Continue the conversation...\n\nThe agent will see the full conversation history.';
+            document.getElementById('taskInput').focus();
+        }
+
+        function startNewTask() {
+            followUpParentId = null;
+            document.getElementById('contextBar').style.display = 'none';
+            document.getElementById('formTitle').textContent = 'New Task';
+            document.getElementById('newTaskBtn').style.display = 'none';
+            document.getElementById('submitBtn').textContent = 'Send';
+            document.getElementById('taskInput').placeholder = 'Describe the task for the agent...\n\nExample: Write a Python function to sort a list using merge sort';
+            document.getElementById('taskInput').value = '';
+            document.getElementById('taskInput').focus();
+        }
+
         // ---- Tasks ----
         async function loadTasks() {
             try {
@@ -366,17 +481,68 @@
                     list.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-secondary)">No tasks yet</div>';
                     return;
                 }
-                // Sort: newest first
+                // Show only root tasks and latest in each chain
+                // Group by conversation: find root tasks (no parent) and standalone
+                const rootTasks = data.tasks.filter(t => !t.parent_id);
+                const childMap = {};
+                data.tasks.forEach(t => {
+                    if (t.parent_id) {
+                        if (!childMap[t.parent_id]) childMap[t.parent_id] = [];
+                        childMap[t.parent_id].push(t);
+                    }
+                });
+                // Find the latest task in each conversation chain
+                function getLatest(taskId) {
+                    const children = childMap[taskId];
+                    if (!children || children.length === 0) return taskId;
+                    children.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                    return getLatest(children[0].id);
+                }
+                // Build display list: show conversations as their latest message
+                const displayed = new Set();
+                const displayTasks = [];
                 data.tasks.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                list.innerHTML = data.tasks.map(t => {
-                    const desc = t.description.length > 60 ? t.description.substring(0, 60) + '...' : t.description;
+                data.tasks.forEach(t => {
+                    // Find the root of this task's chain
+                    let root = t;
+                    const visited = new Set();
+                    while (root.parent_id && !visited.has(root.parent_id)) {
+                        visited.add(root.parent_id);
+                        const parent = data.tasks.find(p => p.id === root.parent_id);
+                        if (parent) root = parent;
+                        else break;
+                    }
+                    if (!displayed.has(root.id)) {
+                        displayed.add(root.id);
+                        // Find the latest in this chain
+                        const latestId = getLatest(root.id);
+                        const latest = data.tasks.find(x => x.id === latestId) || root;
+                        // Count chain length
+                        let chainLen = 0;
+                        data.tasks.forEach(x => {
+                            let cur = x;
+                            const v2 = new Set();
+                            while (cur && !v2.has(cur.id)) {
+                                v2.add(cur.id);
+                                if (cur.id === root.id) { chainLen++; break; }
+                                cur = cur.parent_id ? data.tasks.find(p => p.id === cur.parent_id) : null;
+                            }
+                        });
+                        displayTasks.push({ ...latest, _chainLen: chainLen, _rootId: root.id });
+                    }
+                });
+
+                list.innerHTML = displayTasks.map(t => {
+                    const desc = t.description.length > 55 ? t.description.substring(0, 55) + '...' : t.description;
                     const time = t.created_at ? new Date(t.created_at).toLocaleTimeString() : '';
                     const selected = t.id === selectedTaskId ? ' selected' : '';
+                    const chainBadge = t._chainLen > 1 ? `<span style="font-size:11px;color:var(--purple)">💬 ${t._chainLen}</span>` : '';
                     return `<div class="task-item${selected}" onclick="selectTask('${t.id}')">
                         <div class="task-desc">${escHtml(desc)}</div>
                         <div class="task-meta">
                             <span class="status-badge status-${t.status}">${t.status}</span>
                             <span class="priority-badge">⚡ ${t.priority}</span>
+                            ${chainBadge}
                             <span class="time-badge">${time}</span>
                         </div>
                     </div>`;
@@ -388,60 +554,88 @@
 
         async function selectTask(id) {
             selectedTaskId = id;
-            loadTasks(); // re-render to highlight
+            loadTasks();
 
             try {
-                const t = await api('/tasks/' + id);
+                // Load the conversation chain
+                let chain = [];
+                try {
+                    const chainData = await api('/tasks/' + id + '/chain');
+                    chain = chainData.tasks;
+                } catch (e) {
+                    const t = await api('/tasks/' + id);
+                    chain = [t];
+                }
+
+                const latest = chain[chain.length - 1];
                 const detail = document.getElementById('taskDetail');
 
-                let resultHtml = '';
-                if (t.result) {
-                    // Format code blocks in result
-                    let formatted = escHtml(t.result)
-                        .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-                        .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-                        .replace(/`([^`]+)`/g, '<code>$1</code>');
-                    resultHtml = `<div class="detail-section">
-                        <h3>Result</h3>
-                        <div class="result-content">${formatted}</div>
-                    </div>`;
+                // Build conversation thread
+                let threadHtml = '';
+                if (chain.length > 0) {
+                    threadHtml = '<div class="conv-thread"><h3>Conversation</h3>';
+                    chain.forEach(t => {
+                        // User message
+                        threadHtml += `<div class="conv-bubble user">
+                            <div class="conv-label">You</div>
+                            <div class="conv-text">${escHtml(t.description)}</div>
+                        </div>`;
+                        // Agent response
+                        if (t.result) {
+                            let formatted = escHtml(t.result)
+                                .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+                                .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                                .replace(/`([^`]+)`/g, '<code>$1</code>');
+                            threadHtml += `<div class="conv-bubble assistant">
+                                <div class="conv-label">Agent</div>
+                                <div class="conv-text">${formatted}</div>
+                            </div>`;
+                        } else if (t.error) {
+                            threadHtml += `<div class="conv-bubble assistant">
+                                <div class="conv-label">Agent</div>
+                                <div class="error-box">${escHtml(t.error)}</div>
+                            </div>`;
+                        } else if (t.status === 'pending' || t.status === 'in_progress') {
+                            threadHtml += `<div class="conv-bubble assistant">
+                                <div class="conv-label">Agent</div>
+                                <div class="conv-text"><span class="spinner"></span> Thinking...</div>
+                            </div>`;
+                        }
+                    });
+                    threadHtml += '</div>';
                 }
 
-                let errorHtml = '';
-                if (t.error) {
-                    errorHtml = `<div class="error-box" style="margin-bottom:16px">
-                        <strong>Error:</strong> ${escHtml(t.error)}
-                    </div>`;
-                }
-
-                const duration = t.started_at && t.completed_at
-                    ? ((new Date(t.completed_at) - new Date(t.started_at)) / 1000).toFixed(1) + 's'
-                    : t.started_at ? '<span class="spinner"></span> running...' : 'waiting...';
+                const duration = latest.started_at && latest.completed_at
+                    ? ((new Date(latest.completed_at) - new Date(latest.started_at)) / 1000).toFixed(1) + 's'
+                    : latest.started_at ? '<span class="spinner"></span> running...' : 'waiting...';
 
                 detail.innerHTML = `
                     <div class="detail-header">
-                        <h2>${escHtml(t.description)}</h2>
                         <div class="detail-meta">
-                            <span class="status-badge status-${t.status}">${t.status}</span>
-                            <span class="priority-badge">⚡ ${t.priority}</span>
+                            <span class="status-badge status-${latest.status}">${latest.status}</span>
+                            <span class="priority-badge">⚡ ${latest.priority}</span>
                             <span style="color:var(--text-secondary);font-size:13px">⏱ ${duration}</span>
-                            <span style="color:var(--text-secondary);font-size:13px">ID: ${t.id}</span>
-                            ${t.retries > 0 ? `<span style="color:var(--warning);font-size:13px">↻ ${t.retries} retries</span>` : ''}
+                            <span style="color:var(--text-secondary);font-size:13px">ID: ${latest.id}</span>
+                            ${chain.length > 1 ? `<span style="color:var(--purple);font-size:13px">💬 ${chain.length} messages</span>` : ''}
                         </div>
                     </div>
-                    ${errorHtml}
-                    ${resultHtml}
+                    ${threadHtml}
                     <div class="detail-section">
                         <h3>Timeline</h3>
                         <div style="font-size:13px;color:var(--text-secondary)">
-                            Created: ${t.created_at ? new Date(t.created_at).toLocaleString() : '-'}<br>
-                            Started: ${t.started_at ? new Date(t.started_at).toLocaleString() : '-'}<br>
-                            Completed: ${t.completed_at ? new Date(t.completed_at).toLocaleString() : '-'}
+                            Created: ${latest.created_at ? new Date(latest.created_at).toLocaleString() : '-'}<br>
+                            Started: ${latest.started_at ? new Date(latest.started_at).toLocaleString() : '-'}<br>
+                            Completed: ${latest.completed_at ? new Date(latest.completed_at).toLocaleString() : '-'}
                         </div>
                     </div>`;
 
+                // Auto-set follow-up context when viewing a completed task
+                if (latest.status === 'completed' || latest.status === 'failed') {
+                    setFollowUp(latest.id, latest.description);
+                }
+
                 // Auto-refresh if task is still running
-                if (t.status === 'pending' || t.status === 'in_progress') {
+                if (latest.status === 'pending' || latest.status === 'in_progress') {
                     if (pollInterval) clearInterval(pollInterval);
                     pollInterval = setInterval(() => selectTask(id), 3000);
                 } else {
@@ -464,9 +658,13 @@
             btn.textContent = 'Submitting...';
 
             try {
+                const body = { description: desc, priority: priority };
+                if (followUpParentId) {
+                    body.parent_id = followUpParentId;
+                }
                 const task = await api('/tasks', {
                     method: 'POST',
-                    body: JSON.stringify({ description: desc, priority: priority }),
+                    body: JSON.stringify(body),
                 });
                 input.value = '';
                 showToast('Task submitted: ' + task.id, 'success');
@@ -476,7 +674,7 @@
                 showToast('Failed to submit task: ' + e.message, 'error');
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Submit Task';
+                btn.textContent = followUpParentId ? 'Send Follow-up' : 'Send';
             }
         }
 

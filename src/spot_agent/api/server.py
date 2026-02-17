@@ -135,6 +135,7 @@ def _task_to_response(task: Any) -> TaskResponse:
         priority=task.priority.name.lower(),
         result=task.result,
         error=task.error,
+        parent_id=task.parent_id,
         created_at=task.created_at,
         started_at=task.started_at,
         completed_at=task.completed_at,
@@ -176,6 +177,7 @@ async def submit_task(request: TaskRequest):
     task = _task_queue.submit(
         description=request.description,
         priority=priority,
+        parent_id=request.parent_id,
         **request.metadata,
     )
     log.info("task_submitted", task_id=task.id, description=task.description[:80])
@@ -205,6 +207,21 @@ async def get_task(task_id: str):
     if not task:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
     return _task_to_response(task)
+
+
+@app.get("/tasks/{task_id}/chain", response_model=TaskListResponse)
+async def get_task_chain(task_id: str):
+    """Get the full conversation chain for a task."""
+    if not _task_queue:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    chain = _task_queue.get_conversation_chain(task_id)
+    if not chain:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+    return TaskListResponse(
+        tasks=[_task_to_response(t) for t in chain],
+        total=len(chain),
+    )
 
 
 @app.post("/checkpoint", response_model=CheckpointResponse)

@@ -128,11 +128,26 @@ class AutonomousAgent:
             {"role": "system", "content": SYSTEM_PROMPT},
         ]
 
-        # Add relevant context from memory
-        context = self.memory.get_context_for_llm(limit=10)
-        messages.extend(context)
+        # Load conversation chain from parent tasks
+        if task.parent_id:
+            chain = self.task_queue.get_conversation_chain(task.id)
+            # Add all ancestor tasks (except current) as conversation context
+            for ancestor in chain[:-1]:
+                messages.append({
+                    "role": "user",
+                    "content": f"Execute this task: {ancestor.description}",
+                })
+                if ancestor.result:
+                    messages.append({
+                        "role": "assistant",
+                        "content": ancestor.result,
+                    })
+        else:
+            # No parent — add general memory context
+            context = self.memory.get_context_for_llm(limit=10)
+            messages.extend(context)
 
-        # Add the task
+        # Add the current task
         messages.append({
             "role": "user",
             "content": f"Execute this task: {task.description}",

@@ -28,6 +28,7 @@ class TaskRequest(BaseModel):
     """Request to submit a new task."""
     description: str = Field(description="Task description / instructions for the agent")
     priority: TaskPriorityEnum = Field(default=TaskPriorityEnum.NORMAL, description="Task priority")
+    parent_id: str | None = Field(default=None, description="Parent task ID for follow-up conversations")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
 
@@ -39,6 +40,7 @@ class TaskResponse(BaseModel):
     priority: str
     result: Any = None
     error: str | None = None
+    parent_id: str | None = None
     created_at: datetime | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None

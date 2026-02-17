@@ -35,6 +35,7 @@ class Task:
     priority: TaskPriority = TaskPriority.NORMAL
     result: Any = None
     error: str | None = None
+    parent_id: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: datetime | None = None
     completed_at: datetime | None = None
@@ -51,6 +52,7 @@ class Task:
             "priority": self.priority.value,
             "result": self.result,
             "error": self.error,
+            "parent_id": self.parent_id,
             "created_at": self.created_at.isoformat(),
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
@@ -69,6 +71,7 @@ class Task:
             priority=TaskPriority(data["priority"]),
             result=data.get("result"),
             error=data.get("error"),
+            parent_id=data.get("parent_id"),
             created_at=datetime.fromisoformat(data["created_at"]),
             started_at=datetime.fromisoformat(data["started_at"]) if data.get("started_at") else None,
             completed_at=datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None,
@@ -84,15 +87,25 @@ class TaskQueue:
     def __init__(self) -> None:
         self._tasks: dict[str, Task] = {}
 
-    def submit(self, description: str, priority: TaskPriority = TaskPriority.NORMAL, **metadata: Any) -> Task:
+    def submit(self, description: str, priority: TaskPriority = TaskPriority.NORMAL, parent_id: str | None = None, **metadata: Any) -> Task:
         """Submit a new task to the queue."""
-        task = Task(description=description, priority=priority, metadata=metadata)
+        task = Task(description=description, priority=priority, parent_id=parent_id, metadata=metadata)
         self._tasks[task.id] = task
         return task
 
     def get(self, task_id: str) -> Task | None:
         """Get a task by ID."""
         return self._tasks.get(task_id)
+
+    def get_conversation_chain(self, task_id: str) -> list[Task]:
+        """Get the full conversation chain for a task (oldest first)."""
+        chain: list[Task] = []
+        current = self._tasks.get(task_id)
+        while current:
+            chain.append(current)
+            current = self._tasks.get(current.parent_id) if current.parent_id else None
+        chain.reverse()
+        return chain
 
     def next(self) -> Task | None:
         """Get the next pending task by priority."""
