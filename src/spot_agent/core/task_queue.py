@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 
@@ -85,15 +87,43 @@ class Task:
 
 
 class TaskQueue:
-    """Priority-based task queue for the agent."""
+    """Priority-based task queue for the agent with optional file persistence."""
 
-    def __init__(self) -> None:
+    def __init__(self, persist_path: str | Path | None = None) -> None:
         self._tasks: dict[str, Task] = {}
+        self._persist_path = Path(persist_path) if persist_path else None
+        if self._persist_path:
+            self._load()
+
+    def _save(self) -> None:
+        """Persist tasks to disk."""
+        if not self._persist_path:
+            return
+        try:
+            self._persist_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self._persist_path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self.to_dict(), default=str), encoding="utf-8")
+            tmp.replace(self._persist_path)
+        except Exception:
+            pass  # best-effort persistence
+
+    def _load(self) -> None:
+        """Load tasks from disk."""
+        if not self._persist_path or not self._persist_path.exists():
+            return
+        try:
+            data = json.loads(self._persist_path.read_text(encoding="utf-8"))
+            for item in data:
+                task = Task.from_dict(item)
+                self._tasks[task.id] = task
+        except Exception:
+            pass  # start fresh if file is corrupt
 
     def submit(self, description: str, priority: TaskPriority = TaskPriority.NORMAL, parent_id: str | None = None, title: str | None = None, **metadata: Any) -> Task:
         """Submit a new task to the queue."""
         task = Task(description=description, priority=priority, parent_id=parent_id, title=title, metadata=metadata)
         self._tasks[task.id] = task
+        self._save()
         return task
 
     def get(self, task_id: str) -> Task | None:
@@ -124,6 +154,7 @@ class TaskQueue:
         if task:
             task.status = TaskStatus.IN_PROGRESS
             task.started_at = datetime.now(timezone.utc)
+            self._save()
 
     def mark_completed(self, task_id: str, result: Any = None) -> None:
         """Mark a task as completed."""
@@ -132,6 +163,7 @@ class TaskQueue:
             task.status = TaskStatus.COMPLETED
             task.result = result
             task.completed_at = datetime.now(timezone.utc)
+            self._save()
 
     def mark_failed(self, task_id: str, error: str) -> None:
         """Mark a task as failed."""
@@ -145,6 +177,7 @@ class TaskQueue:
                 task.status = TaskStatus.FAILED
                 task.error = error
                 task.completed_at = datetime.now(timezone.utc)
+            self._save()
 
     def list_all(self) -> list[Task]:
         """List all tasks."""

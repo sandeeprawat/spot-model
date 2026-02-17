@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
     setup_logging(getattr(config, "log_level", "INFO") or "INFO")
 
     # Initialize components
-    _task_queue = TaskQueue()
+    _task_queue = TaskQueue(persist_path="data/tasks.json")
     _tool_registry = ToolRegistry()
     _tool_registry.register_builtin_tools()
     _tracker = CapabilityTracker()
@@ -237,6 +237,7 @@ async def update_task(task_id: str, updates: dict):
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
     if "title" in updates:
         task.title = updates["title"]
+    _task_queue._save()
     return _task_to_response(task)
 
 
@@ -257,6 +258,7 @@ async def retry_task(task_id: str):
     task.retries = 0
     task.started_at = None
     task.completed_at = None
+    _task_queue._save()
     log.info("task_retried", task_id=task.id)
     return _task_to_response(task)
 
